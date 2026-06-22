@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  PROFESSIONAL
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  phone        String        @unique
+  role         Role          @default(CUSTOMER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[] @relation("CustomerAppointments")
+  schedules    Schedule[]    @relation("ProfessionalSchedules")
+  logs         SecurityLog[]
+
+  @@index([email])
+}
+
+model Service {
+  id           String        @id @default(uuid())
+  name         String
+  description  String?
+  durationMin  Int
+  price        Decimal       @db.Decimal(10, 2)
+  isActive     Boolean       @default(true)
+  appointments Appointment[]
+}
+
+model Schedule {
+  id             String   @id @default(uuid())
+  professionalId String
+  professional   User     @relation("ProfessionalSchedules", fields: [professionalId], references: [id])
+  dayOfWeek      Int      // 0 (Domingo) a 6 (Sábado)
+  startTime      String   // Formato "HH:MM"
+  endTime        String   // Formato "HH:MM"
+  lunchStart     String?  // Formato "HH:MM"
+  lunchEnd       String?  // Formato "HH:MM"
+
+  @@unique([professionalId, dayOfWeek])
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  customerId     String
+  customer       User              @relation("CustomerAppointments", fields: [customerId], references: [id])
+  professionalId String
+  serviceId      String
+  service        Service           @relation(fields: [serviceId], references: [id])
+  startTime      DateTime
+  endTime        DateTime
+  status         AppointmentStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([startTime, professionalId])
+  @@index([customerId])
+}
+
+model SecurityLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  ipAddress String
+  userAgent String
+  createdAt DateTime @default(now())
+}
